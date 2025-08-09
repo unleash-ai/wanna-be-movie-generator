@@ -1,0 +1,254 @@
+extends layout
+
+block content
+  .welcome-section
+    h1.welcome-title Movie Generator
+    p.welcome-subtitle Describe your movie idea and upload your photo. Our AI will create a personalized short story for you.
+  
+  .chat-container
+    .messages-area#messagesArea
+      // Welcome message
+      .message.assistant
+        .message-avatar 🎬
+        .message-content
+          p Welcome! I'm your AI movie generator. Tell me about the movie you'd like to create, and don't forget to upload a photo of yourself to be the star!
+          p.
+            <strong>Examples:</strong><br>
+            • "Create a sci-fi adventure where I'm an astronaut discovering a new planet"<br>
+            • "Make a romantic comedy where I meet my soulmate in a coffee shop"<br>
+            • "Write a thriller where I'm a detective solving a mysterious case"
+    
+    .input-section
+      .input-container
+        .photo-preview#photoPreview(style="display: none;")
+          img#previewImage
+          span#photoName
+          button.remove-photo(onclick="removePhoto()") ×
+        
+        .input-wrapper
+          button.file-upload-btn(onclick="document.getElementById('photoUpload').click()" title="Upload your photo")
+            | 📎
+          textarea.message-input#messageInput(placeholder="Describe your movie idea..." rows="1" oninput="adjustTextareaHeight(this)" onkeydown="handleKeyDown(event)")
+          button.send-btn#sendBtn(onclick="sendMessage()" disabled)
+            | ➤
+        
+        input#photoUpload(type="file" accept="image/*" style="display: none;" onchange="handlePhotoUpload(this)")
+  
+  script.
+    let currentPhoto = null;
+    let isGenerating = false;
+    
+    // Auto-resize textarea
+    function adjustTextareaHeight(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+      
+      // Enable/disable send button
+      const sendBtn = document.getElementById('sendBtn');
+      sendBtn.disabled = !textarea.value.trim() || isGenerating;
+    }
+    
+    // Handle Enter key
+    function handleKeyDown(event) {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+      }
+    }
+    
+    // Handle photo upload
+    function handlePhotoUpload(input) {
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+          showNotification('Please upload an image file', 'error');
+          return;
+        }
+        
+        // Validate file size (5MB limit)
+        if (file.size > 5 * 1024 * 1024) {
+          showNotification('Image must be smaller than 5MB', 'error');
+          return;
+        }
+        
+        currentPhoto = file;
+        
+        // Show preview
+        const preview = document.getElementById('photoPreview');
+        const previewImage = document.getElementById('previewImage');
+        const photoName = document.getElementById('photoName');
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          previewImage.src = e.target.result;
+          photoName.textContent = file.name;
+          preview.style.display = 'flex';
+        };
+        reader.readAsDataURL(file);
+        
+        showNotification('Photo uploaded! Now describe your movie idea.', 'success');
+      }
+    }
+    
+    // Remove photo
+    function removePhoto() {
+      currentPhoto = null;
+      document.getElementById('photoPreview').style.display = 'none';
+      document.getElementById('photoUpload').value = '';
+    }
+    
+    // Send message
+    async function sendMessage() {
+      const messageInput = document.getElementById('messageInput');
+      const message = messageInput.value.trim();
+      
+      if (!message || isGenerating) return;
+      
+      // Add user message to chat
+      addMessage('user', message);
+      
+      // Clear input
+      messageInput.value = '';
+      adjustTextareaHeight(messageInput);
+      
+      // Show loading
+      isGenerating = true;
+      const loadingMessage = addMessage('assistant', '', true);
+      
+      try {
+        // Prepare form data
+        const formData = new FormData();
+        formData.append('message', message);
+        if (currentPhoto) {
+          formData.append('photo', currentPhoto);
+        }
+        
+        // Send to backend
+        const response = await fetch('/api/generate-movie', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const data = await response.json();
+        
+        // Remove loading message
+        loadingMessage.remove();
+        
+        if (data.success) {
+          // Add AI response
+          addMessage('assistant', data.story);
+          
+          // Show success notification
+          showNotification('Movie story generated successfully!', 'success');
+          
+          // Clear photo after successful generation
+          if (currentPhoto) {
+            removePhoto();
+          }
+        } else {
+          addMessage('assistant', `Sorry, I encountered an error: ${data.error}`);
+          showNotification('Failed to generate movie story', 'error');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        loadingMessage.remove();
+        addMessage('assistant', 'Sorry, I encountered a technical error. Please try again.');
+        showNotification('Network error. Please try again.', 'error');
+      } finally {
+        isGenerating = false;
+        document.getElementById('sendBtn').disabled = false;
+      }
+    }
+    
+    // Add message to chat
+    function addMessage(type, content, isLoading = false) {
+      const messagesArea = document.getElementById('messagesArea');
+      
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${type}`;
+      
+      const avatar = document.createElement('div');
+      avatar.className = 'message-avatar';
+      avatar.textContent = type === 'user' ? '👤' : '🎬';
+      
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'message-content';
+      
+      if (isLoading) {
+        contentDiv.innerHTML = `
+          <div class="loading">
+            <span>Generating your movie story</span>
+            <div class="loading-dots">
+              <div class="loading-dot"></div>
+              <div class="loading-dot"></div>
+              <div class="loading-dot"></div>
+            </div>
+          </div>
+        `;
+      } else {
+        contentDiv.innerHTML = content.replace(/\n/g, '<br>');
+      }
+      
+      messageDiv.appendChild(avatar);
+      messageDiv.appendChild(contentDiv);
+      
+      messagesArea.appendChild(messageDiv);
+      
+      // Scroll to bottom
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+      
+      return messageDiv;
+    }
+    
+    // Notification system
+    function showNotification(message, type = 'info') {
+      const existing = document.querySelector('.notification');
+      if (existing) existing.remove();
+      
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+      notification.textContent = message;
+      
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 1000;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        max-width: 300px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      `;
+      
+      const colors = {
+        success: '#10a37f',
+        error: '#ef4444',
+        info: '#1a73e8',
+        warning: '#f59e0b'
+      };
+      
+      notification.style.background = colors[type] || colors.info;
+      
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+      }, 100);
+      
+      setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => notification.remove(), 300);
+      }, 4000);
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      const messageInput = document.getElementById('messageInput');
+      messageInput.focus();
+    });

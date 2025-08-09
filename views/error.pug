@@ -1,0 +1,14 @@
+extends layout
+
+block content
+  .welcome-section
+    h1.welcome-title Error #{error.status}
+    p.welcome-subtitle= error.message
+    
+    .error-actions
+      a.btn-primary(href="/") ← Back to Home
+      
+  style.
+    .error-actions {
+      margin-top: 2rem;
+    }

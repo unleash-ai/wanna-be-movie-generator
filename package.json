@@ -1,0 +1,31 @@
+{
+  "name": "nosocomial-express-app",
+  "version": "1.0.0",
+  "description": "A basic Node.js Express application with Pug templating and Mongoose",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "keywords": [
+    "nodejs",
+    "express",
+    "pug",
+    "mongoose",
+    "mongodb"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "pug": "^3.0.2",
+    "dotenv": "^16.3.1",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^9.0.1",
+    "langchain": "^0.0.212",
+    "@langchain/openai": "^0.0.14"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
