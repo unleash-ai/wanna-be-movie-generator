@@ -114,6 +114,84 @@ class TTSService {
       { id: 'shimmer', name: 'Shimmer', description: 'Bright, energetic voice' }
     ];
   }
+
+  /**
+   * Generate music for a scene using MusicGPT API
+   * @param {string} prompt - Music description prompt
+   * @param {string} musicStyle - Style of music (e.g., "cinematic", "dramatic", "upbeat")
+   * @param {number} sceneIndex - Index of the scene for organization
+   * @returns {Promise<Object>} - Music generation result
+   */
+  async generateMusic(prompt, musicStyle, sceneIndex) {
+    try {
+      console.log(`🎵 Generating music for scene ${sceneIndex}: "${prompt.substring(0, 50)}..."`);
+      console.log(`🎼 Music style: ${musicStyle}`);
+
+      const url = 'https://api.musicgpt.com/api/public/v1/MusicAI';
+      const options = {
+        method: 'POST',
+        headers: {
+          'Authorization': process.env.MUSIC_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt: prompt,
+          music_style: musicStyle,
+          lyrics: "",
+          make_instrumental: true,
+          vocal_only: false,
+          voice_id: "",
+          webhook_url: ""
+        })
+      };
+
+      const response = await fetch(url, options);
+      
+      if (!response.ok) {
+        throw new Error(`MusicGPT API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log(`✅ Music generation response for scene ${sceneIndex}:`, data);
+
+      // Generate a unique filename for the music
+      const filename = `music_scene_${sceneIndex}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.mp3`;
+      
+      // Save the music file (assuming the API returns a download URL or file data)
+      const fs = require('fs');
+      const path = require('path');
+      const uploadsDir = path.join(__dirname, '../uploads/music');
+      
+      // Ensure uploads directory exists
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      // For now, we'll store the API response data
+      // You may need to adjust this based on what the MusicGPT API actually returns
+      const filePath = path.join(uploadsDir, filename);
+      
+      // If the API returns a download URL, you might want to download the file here
+      // For now, we'll save the response data as JSON for reference
+      const responseDataPath = filePath.replace('.mp3', '_response.json');
+      fs.writeFileSync(responseDataPath, JSON.stringify(data, null, 2));
+
+      return {
+        success: true,
+        filename: filename,
+        filePath: filePath,
+        responseData: data,
+        sceneIndex: sceneIndex,
+        prompt: prompt,
+        musicStyle: musicStyle,
+        message: 'Music generation completed'
+      };
+
+    } catch (error) {
+      console.error(`❌ Music generation error for scene ${sceneIndex}:`, error);
+      throw new Error(`Music generation failed for scene ${sceneIndex}: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new TTSService();

@@ -96,7 +96,7 @@ Use a JSON format for the output:
             "dialogues": [
                 {
                     "name": "Name of the character",
-                    "description": "Description of the tone, accent and other elements of the audio, as a prompt to generate audio from text",
+                    "description": "Description of the gender, tone, accent and other elements of the audio, as a prompt to generate audio from text",
                     "dialogue": "Dialogue of the character"
                 }
             ],
@@ -193,45 +193,107 @@ Use a JSON format for the output:
       // Import the TTS service
       const ttsService = require('../services/ttsService');
       
-      // Generate audio for all dialogues
+      // Generate audio for all dialogues AND music for all scenes in parallel
       console.log('🔊 Generating text-to-speech for dialogues...');
-      const audioResults = await Promise.all(
-        dialogues.map(async (dialogue) => {
-          try {
-            const audioResult = await ttsService.generateSpeech(
-              dialogue.dialogue,
-              dialogue.description
-            );
-            return {
-              ...dialogue,
-              audio: audioResult
-            };
-          } catch (error) {
-            console.error(`❌ Failed to generate audio for dialogue ${dialogue.sceneIndex}-${dialogue.dialogueIndex}:`, error);
-            return {
-              ...dialogue,
-              audio: null,
-              error: error.message
-            };
-          }
-        })
-      );
+      console.log('🎵 Generating music for scenes...');
+      
+      // Create arrays for parallel processing
+      const dialoguePromises = dialogues.map(async (dialogue) => {
+        try {
+          const audioResult = await ttsService.generateSpeech(
+            dialogue.dialogue,
+            dialogue.description
+          );
+          return {
+            ...dialogue,
+            audio: audioResult
+          };
+        } catch (error) {
+          console.error(`❌ Failed to generate audio for dialogue ${dialogue.sceneIndex}-${dialogue.dialogueIndex}:`, error);
+          return {
+            ...dialogue,
+            audio: null,
+            error: error.message
+          };
+        }
+      });
+
+      const musicPromises = story.scenes.map(async (scene, sceneIndex) => {
+        try {
+          // Determine music style based on scene description
+          const musicStyle = this.determineMusicStyle(scene.description, scene.music);
+          const musicResult = await ttsService.generateMusic(
+            scene.music,
+            musicStyle,
+            sceneIndex
+          );
+          return {
+            sceneIndex,
+            sceneTitle: scene.title,
+            music: musicResult
+          };
+        } catch (error) {
+          console.error(`❌ Failed to generate music for scene ${sceneIndex}:`, error);
+          return {
+            sceneIndex,
+            sceneTitle: scene.title,
+            music: null,
+            error: error.message
+          };
+        }
+      });
+
+      // Execute both processes in parallel
+      const [audioResults, musicResults] = await Promise.all([
+        Promise.all(dialoguePromises),
+        Promise.all(musicPromises)
+      ]);
 
       console.log(`✅ Generated audio for ${audioResults.filter(r => r.audio).length}/${audioResults.length} dialogues`);
+      console.log(`✅ Generated music for ${musicResults.filter(r => r.music).length}/${musicResults.length} scenes`);
       
-      // TODO: Add music generation
       // TODO: Add video generation
       // TODO: Add effects generation
       
       return {
         success: true,
         audioResults,
+        musicResults,
         message: 'Video generation pipeline completed'
       };
       
     } catch (error) {
       console.error('❌ Video generation error:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Determine music style based on scene description and music prompt
+   * @param {string} sceneDescription - Description of the scene
+   * @param {string} musicPrompt - Music description prompt
+   * @returns {string} - Music style identifier
+   */
+  determineMusicStyle(sceneDescription, musicPrompt) {
+    const combinedText = `${sceneDescription} ${musicPrompt}`.toLowerCase();
+    
+    // Determine style based on content
+    if (combinedText.includes('action') || combinedText.includes('chase') || combinedText.includes('battle')) {
+      return 'action';
+    } else if (combinedText.includes('romantic') || combinedText.includes('love') || combinedText.includes('tender')) {
+      return 'romantic';
+    } else if (combinedText.includes('sad') || combinedText.includes('melancholy') || combinedText.includes('emotional')) {
+      return 'emotional';
+    } else if (combinedText.includes('mystery') || combinedText.includes('suspense') || combinedText.includes('thriller')) {
+      return 'mystery';
+    } else if (combinedText.includes('comedy') || combinedText.includes('funny') || combinedText.includes('light')) {
+      return 'comedy';
+    } else if (combinedText.includes('epic') || combinedText.includes('grand') || combinedText.includes('heroic')) {
+      return 'epic';
+    } else if (combinedText.includes('calm') || combinedText.includes('peaceful') || combinedText.includes('ambient')) {
+      return 'ambient';
+    } else {
+      return 'cinematic'; // Default cinematic style
     }
   }
 
