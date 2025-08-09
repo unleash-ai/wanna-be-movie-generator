@@ -48,6 +48,13 @@ jspm_packages/
 tmp/
 temp/
 
+# Uploaded files and generated content
+uploads/
+*.mp3
+*.mp4
+*.wav
+*.avi
+
 # IDE files
 .vscode/
 .idea/

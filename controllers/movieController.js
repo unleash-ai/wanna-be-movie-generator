@@ -71,23 +71,20 @@ class MovieController {
       const systemMessage = new SystemMessage(`You are a creative movie script writer. Create engaging, personalized short movie stories based on user descriptions. 
 
 Guidelines:
-- Create a complete short story that last about 20 seconds. 
-- Include vivid descriptions and dialogue, separated by scenes. 
+- Create a complete short story that last about 32 seconds. 
+- Include vivid descriptions and dialogue, separated by scenes of 4 seconds (so about 8 scenes). 
 - Make it cinematic and engaging
-- If the user mentions being in the movie, make them the protagonist
-- Include character development and a satisfying conclusion
-- Use proper formatting with paragraphs
+- The user is the protagonist always
+- Include character development and a satisfying conclusion (three acts)
 - Make it suitable for all audiences unless specifically requested otherwise
 
 The user ${req.file ? 'has uploaded a photo of themselves and ' : ''}wants you to create a movie story.`);
 
       const humanMessage = new HumanMessage(`Create a movie story based on this description: "${message}"
 
-${req.file ? 'The user has uploaded a photo of themselves to be included as the main character.' : ''}
+Please write a complete, engaging short movie story using the three acts structure.
 
-Please write a complete, engaging short movie story.
-
-use a JSON format for the output:
+Use a JSON format for the output:
 {
     "title": "Title of the movie",
     "description": "Description of the movie",
@@ -95,14 +92,15 @@ use a JSON format for the output:
         {
             "title": "Title of the scene",
             "index": "Index of the scene",
-            "description": "Description of the scene to generate a video (prompt)",
+            "description": "Description of the scene as a prompt to generate video",
             "dialogues": [
                 {
                     "name": "Name of the character",
+                    "description": "Description of the tone, accent and other elements of the audio, as a prompt to generate audio from text",
                     "dialogue": "Dialogue of the character"
                 }
             ],
-            "music": "description to generate the music",
+            "music": "description as a prompt to generate music (4 seconds)",
             "fx": "description to generate the fx",
         }
     ]
@@ -116,20 +114,44 @@ use a JSON format for the output:
       const generatedStory = JSON.parse(response.content);
       const generationTime = Date.now() - startTime;
 
+      // Extract all dialogues from scenes for text-to-speech
+      const allDialogues = [];
+      generatedStory.scenes.forEach((scene, sceneIndex) => {
+        scene.dialogues.forEach((dialogue, dialogueIndex) => {
+          allDialogues.push({
+            sceneIndex,
+            dialogueIndex,
+            name: dialogue.name,
+            description: dialogue.description,
+            dialogue: dialogue.dialogue
+          });
+        });
+      });
+
+      console.log(`🎭 Found ${allDialogues.length} dialogues to process`);
+
+      // Generate video with all components
+      try {
+        const videoResult = await this.generate_video(generatedStory, allDialogues);
+        console.log('✅ Video generation completed:', videoResult);
+      } catch (videoError) {
+        console.error('❌ Video generation failed:', videoError);
+        // Continue with story generation even if video fails
+      }
+
+
+
       console.log('✅ Story Generated Successfully!');
       console.log('Generation Time:', `${generationTime}ms`);
-      console.log('Story Length:', `${generatedStory.split(' ').length} words`);
       console.log('---');
-      console.log('📖 Generated Story:');
+      console.log('Generated Story:');
       console.log(generatedStory);
-      console.log('='.repeat(80));
 
       // Return successful response
       res.json({
         success: true,
-        story: generatedStory,
+        story: JSON.stringify(generatedStory),
         generationTime: generationTime,
-        wordCount: generatedStory.split(' ').length
       });
 
     } catch (error) {
@@ -160,6 +182,56 @@ use a JSON format for the output:
           error: 'Failed to generate movie story. Please try again.' 
         });
       }
+    }
+  }
+
+  // Generate video with all components
+  async generate_video(story, dialogues) {
+    try {
+      console.log('🎬 Starting video generation process...');
+      
+      // Import the TTS service
+      const ttsService = require('../services/ttsService');
+      
+      // Generate audio for all dialogues
+      console.log('🔊 Generating text-to-speech for dialogues...');
+      const audioResults = await Promise.all(
+        dialogues.map(async (dialogue) => {
+          try {
+            const audioResult = await ttsService.generateSpeech(
+              dialogue.dialogue,
+              dialogue.description
+            );
+            return {
+              ...dialogue,
+              audio: audioResult
+            };
+          } catch (error) {
+            console.error(`❌ Failed to generate audio for dialogue ${dialogue.sceneIndex}-${dialogue.dialogueIndex}:`, error);
+            return {
+              ...dialogue,
+              audio: null,
+              error: error.message
+            };
+          }
+        })
+      );
+
+      console.log(`✅ Generated audio for ${audioResults.filter(r => r.audio).length}/${audioResults.length} dialogues`);
+      
+      // TODO: Add music generation
+      // TODO: Add video generation
+      // TODO: Add effects generation
+      
+      return {
+        success: true,
+        audioResults,
+        message: 'Video generation pipeline completed'
+      };
+      
+    } catch (error) {
+      console.error('❌ Video generation error:', error);
+      throw error;
     }
   }
 

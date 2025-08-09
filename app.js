@@ -6,7 +6,7 @@ require('dotenv').config();
 const movieRoutes = require('./routes/movieRoutes');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Set up Pug as the view engine
 app.set('view engine', 'pug');
