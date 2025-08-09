@@ -71,8 +71,8 @@ class MovieController {
       const systemMessage = new SystemMessage(`You are a creative movie script writer. Create engaging, personalized short movie stories based on user descriptions. 
 
 Guidelines:
-- Create a complete short story that last about 32 seconds. 
-- Include vivid descriptions and dialogue, separated by scenes of 4 seconds (so about 8 scenes). 
+- Create a complete short story that last about 12 seconds. 
+- Include vivid descriptions and dialogue, separated by scenes of 4 seconds (so about 3 scenes). 
 - Make it cinematic and engaging
 - The user is the protagonist always
 - Include character development and a satisfying conclusion (three acts)

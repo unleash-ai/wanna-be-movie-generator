@@ -152,7 +152,13 @@ class TTSService {
       }
 
       const data = await response.json();
-      console.log(`✅ Music generation response for scene ${sceneIndex}:`, data);
+      console.log(`✅ Music generation response for scene ${sceneIndex}:`, JSON.stringify(data, null, 2));
+      
+      // Debug: Check what fields we have
+      console.log(`🔍 Response fields for scene ${sceneIndex}:`, Object.keys(data));
+      if (data.conversion_id) console.log(`🔑 conversion_id: ${data.conversion_id}`);
+      if (data.conversion_id_2) console.log(`🔑 conversion_id_2: ${data.conversion_id_2}`);
+      if (data.task_id) console.log(`🔑 task_id: ${data.task_id}`);
 
       // Check if we have a conversion_id to retrieve the music
       if (data.conversion_id || data.conversion_id_2) {
@@ -203,7 +209,7 @@ class TTSService {
     try {
       console.log(`🎵 Retrieving music for scene ${sceneIndex} with conversion ID: ${conversionId}`);
       
-      const url = `https://api.musicgpt.com/api/public/v1/byId?conversion_id=${conversionId}`;
+      const url = `https://api.musicgpt.com/api/public/v1/byId?conversionType=MUSIC_AI&conversion_id=${conversionId}`;
       const options = {
         method: 'GET',
         headers: {
@@ -218,10 +224,15 @@ class TTSService {
         attempts++;
         console.log(`🔄 Attempt ${attempts}/${maxAttempts} to retrieve music for scene ${sceneIndex}`);
         
+        console.log(`🌐 Making request to: ${url}`);
         const response = await fetch(url, options);
         
+        console.log(`📡 Response status: ${response.status} ${response.statusText}`);
+        
         if (!response.ok) {
-          throw new Error(`MusicGPT retrieval API error: ${response.status} ${response.statusText}`);
+          const errorText = await response.text();
+          console.error(`❌ API Error Response:`, errorText);
+          throw new Error(`MusicGPT retrieval API error: ${response.status} ${response.statusText} - ${errorText}`);
         }
 
         const data = await response.json();
