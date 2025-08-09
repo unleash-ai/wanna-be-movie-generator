@@ -218,15 +218,27 @@ Use a JSON format for the output:
         }
       });
 
+      console.log(`🎬 Total scenes to process: ${story.scenes.length}`);
+      story.scenes.forEach((scene, idx) => {
+        console.log(`  Scene ${idx}: "${scene.title}" - Music: "${scene.music}"`);
+      });
+
       const musicPromises = story.scenes.map(async (scene, sceneIndex) => {
         try {
+          console.log(`🎵 Starting music generation for scene ${sceneIndex}: "${scene.title}"`);
+          
           // Determine music style based on scene description
           const musicStyle = this.determineMusicStyle(scene.description, scene.music);
+          console.log(`🎼 Scene ${sceneIndex} music style: ${musicStyle}`);
+          
           const musicResult = await ttsService.generateMusic(
             scene.music,
             musicStyle,
             sceneIndex
           );
+          
+          console.log(`✅ Music generation completed for scene ${sceneIndex}`);
+          
           return {
             sceneIndex,
             sceneTitle: scene.title,

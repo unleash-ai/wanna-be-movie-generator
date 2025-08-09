@@ -154,42 +154,157 @@ class TTSService {
       const data = await response.json();
       console.log(`✅ Music generation response for scene ${sceneIndex}:`, data);
 
+      // Check if we have a conversion_id to retrieve the music
+      if (data.conversion_id || data.conversion_id_2) {
+        const conversionId = data.conversion_id || data.conversion_id_2;
+        console.log(`🔄 Retrieving music file for conversion ID: ${conversionId}`);
+        
+        // Wait a bit for processing, then retrieve the music
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const musicFile = await this.retrieveMusic(conversionId, sceneIndex);
+        
+        return {
+          success: true,
+          filename: musicFile.filename,
+          filePath: musicFile.filePath,
+          responseData: data,
+          musicFile: musicFile,
+          sceneIndex: sceneIndex,
+          prompt: prompt,
+          musicStyle: musicStyle,
+          message: 'Music generation and retrieval completed'
+        };
+      } else {
+        console.warn(`⚠️ No conversion ID found in response for scene ${sceneIndex}`);
+        return {
+          success: false,
+          responseData: data,
+          sceneIndex: sceneIndex,
+          prompt: prompt,
+          musicStyle: musicStyle,
+          message: 'Music generation completed but no conversion ID found'
+        };
+      }
+
+    } catch (error) {
+      console.error(`❌ Music generation error for scene ${sceneIndex}:`, error);
+      throw new Error(`Music generation failed for scene ${sceneIndex}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Retrieve generated music file using conversion ID
+   * @param {string} conversionId - The conversion ID from the generation response
+   * @param {number} sceneIndex - Index of the scene for organization
+   * @returns {Promise<Object>} - Retrieved music file result
+   */
+  async retrieveMusic(conversionId, sceneIndex) {
+    try {
+      console.log(`🎵 Retrieving music for scene ${sceneIndex} with conversion ID: ${conversionId}`);
+      
+      const url = `https://api.musicgpt.com/api/public/v1/byId?conversion_id=${conversionId}`;
+      const options = {
+        method: 'GET',
+        headers: {
+          'Authorization': process.env.MUSIC_KEY
+        }
+      };
+
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      while (attempts < maxAttempts) {
+        attempts++;
+        console.log(`🔄 Attempt ${attempts}/${maxAttempts} to retrieve music for scene ${sceneIndex}`);
+        
+        const response = await fetch(url, options);
+        
+        if (!response.ok) {
+          throw new Error(`MusicGPT retrieval API error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log(`📡 Retrieval response for scene ${sceneIndex}:`, data);
+
+        if (data.success && data.conversion && data.conversion.status === 'COMPLETED') {
+          console.log(`✅ Music ready for scene ${sceneIndex}!`);
+          
+          // Download the music file
+          const audioUrl = data.conversion.audio_url;
+          if (audioUrl) {
+            return await this.downloadMusicFile(audioUrl, sceneIndex, data);
+          } else {
+            throw new Error('No audio URL found in completed conversion');
+          }
+        } else if (data.success && data.conversion && data.conversion.status === 'PROCESSING') {
+          console.log(`⏳ Music still processing for scene ${sceneIndex}, waiting...`);
+          await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+        } else {
+          console.log(`⚠️ Unexpected status for scene ${sceneIndex}:`, data.conversion?.status);
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+        }
+      }
+      
+      throw new Error(`Failed to retrieve music after ${maxAttempts} attempts for scene ${sceneIndex}`);
+
+    } catch (error) {
+      console.error(`❌ Music retrieval error for scene ${sceneIndex}:`, error);
+      throw new Error(`Music retrieval failed for scene ${sceneIndex}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Download music file from URL and save locally
+   * @param {string} audioUrl - URL to download the music file from
+   * @param {number} sceneIndex - Index of the scene for organization
+   * @param {Object} metadata - Metadata about the music
+   * @returns {Promise<Object>} - Downloaded file result
+   */
+  async downloadMusicFile(audioUrl, sceneIndex, metadata) {
+    try {
+      console.log(`📥 Downloading music file for scene ${sceneIndex} from: ${audioUrl}`);
+      
+      const response = await fetch(audioUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download music file: ${response.status} ${response.statusText}`);
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      
       // Generate a unique filename for the music
       const filename = `music_scene_${sceneIndex}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.mp3`;
       
-      // Save the music file (assuming the API returns a download URL or file data)
+      // Save the music file
       const fs = require('fs');
       const path = require('path');
       const uploadsDir = path.join(__dirname, '../uploads/music');
       
       // Ensure uploads directory exists
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
-
-      // For now, we'll store the API response data
-      // You may need to adjust this based on what the MusicGPT API actually returns
       const filePath = path.join(uploadsDir, filename);
       
-      // If the API returns a download URL, you might want to download the file here
-      // For now, we'll save the response data as JSON for reference
-      const responseDataPath = filePath.replace('.mp3', '_response.json');
-      fs.writeFileSync(responseDataPath, JSON.stringify(data, null, 2));
+      // Save the audio file
+      fs.writeFileSync(filePath, buffer);
+      
+      // Save metadata
+      const metadataPath = filePath.replace('.mp3', '_metadata.json');
+      fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
 
+      console.log(`✅ Music file downloaded and saved for scene ${sceneIndex}: ${filename}`);
+      
       return {
         success: true,
         filename: filename,
         filePath: filePath,
-        responseData: data,
-        sceneIndex: sceneIndex,
-        prompt: prompt,
-        musicStyle: musicStyle,
-        message: 'Music generation completed'
+        size: buffer.length,
+        duration: metadata.conversion?.duration || 4, // Default 4 seconds
+        metadata: metadata,
+        audioUrl: audioUrl
       };
 
     } catch (error) {
-      console.error(`❌ Music generation error for scene ${sceneIndex}:`, error);
-      throw new Error(`Music generation failed for scene ${sceneIndex}: ${error.message}`);
+      console.error(`❌ Music download error for scene ${sceneIndex}:`, error);
+      throw new Error(`Music download failed for scene ${sceneIndex}: ${error.message}`);
     }
   }
 }
