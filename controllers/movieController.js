@@ -255,22 +255,56 @@ Use a JSON format for the output:
         }
       });
 
-      // Execute both processes in parallel
-      const [audioResults, musicResults] = await Promise.all([
+      // Generate videos for all scenes in parallel
+      console.log('🎬 Generating videos for scenes...');
+      
+      const videoPromises = story.scenes.map(async (scene, sceneIndex) => {
+        try {
+          console.log(`🎬 Starting video generation for scene ${sceneIndex}: "${scene.title}"`);
+          
+          const videoService = require('../services/videoService');
+          const videoResult = await videoService.generateVideo(
+            scene.description,
+            sceneIndex,
+            scene.title
+          );
+          
+          console.log(`✅ Video generation completed for scene ${sceneIndex}`);
+          
+          return {
+            sceneIndex,
+            sceneTitle: scene.title,
+            video: videoResult
+          };
+        } catch (error) {
+          console.error(`❌ Failed to generate video for scene ${sceneIndex}:`, error);
+          return {
+            sceneIndex,
+            sceneTitle: scene.title,
+            video: null,
+            error: error.message
+          };
+        }
+      });
+
+      // Execute all processes in parallel
+      const [audioResults, musicResults, videoResults] = await Promise.all([
         Promise.all(dialoguePromises),
-        Promise.all(musicPromises)
+        Promise.all(musicPromises),
+        Promise.all(videoPromises)
       ]);
 
       console.log(`✅ Generated audio for ${audioResults.filter(r => r.audio).length}/${audioResults.length} dialogues`);
       console.log(`✅ Generated music for ${musicResults.filter(r => r.music).length}/${musicResults.length} scenes`);
+      console.log(`✅ Generated videos for ${videoResults.filter(r => r.video).length}/${videoResults.length} scenes`);
       
-      // TODO: Add video generation
       // TODO: Add effects generation
       
       return {
         success: true,
         audioResults,
         musicResults,
+        videoResults,
         message: 'Video generation pipeline completed'
       };
       

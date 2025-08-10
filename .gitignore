@@ -54,6 +54,8 @@ uploads/
 *.mp4
 *.wav
 *.avi
+*.mov
+*.mkv
 
 # IDE files
 .vscode/
