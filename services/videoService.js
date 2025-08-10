@@ -1,22 +1,20 @@
-const { GoogleGenAI } = require("@google/genai");
 require('dotenv').config();
 
 class VideoService {
   constructor() {
-    if (!process.env.GOOGLE_API_KEY) {
-      throw new Error('GOOGLE_API_KEY environment variable is required');
+    if (!process.env.LEONARDO_API_KEY) {
+      throw new Error('LEONARDO_API_KEY environment variable is required');
     }
-
-    this.ai = new GoogleGenAI({
-      apiKey: process.env.GOOGLE_API_KEY
-    });
     
-    console.log(`🔑 Google GenAI initialized with project ID: ${process.env.G_PROJECT_ID}`);
-    console.log(`🔑 API Key (first 10 chars): ${process.env.GOOGLE_API_KEY.substring(0, 10)}...`);
+    this.apiKey = process.env.LEONARDO_API_KEY;
+    this.baseUrl = 'https://cloud.leonardo.ai/api/rest/v1';
+    
+    console.log(`🔑 Leonardo AI initialized`);
+    console.log(`🔑 API Key (first 10 chars): ${this.apiKey.substring(0, 10)}...`);
   }
 
   /**
-   * Generate video for a scene using Google Veo AI
+   * Generate video for a scene using Leonardo AI
    * @param {string} sceneDescription - Description of the scene to generate video for
    * @param {number} sceneIndex - Index of the scene for organization
    * @param {string} sceneTitle - Title of the scene
@@ -31,50 +29,45 @@ class VideoService {
       const prompt = this.createCinematicPrompt(sceneDescription, sceneTitle);
       console.log(`🎭 Generated prompt: "${prompt}"`);
 
-      // Start video generation
-      console.log(`🎬 Calling Google Veo API with model: veo-3.0-generate-preview`);
-      let operation = await this.ai.models.generateVideos({
-        model: "veo-3.0-generate-preview",
-        prompt: prompt,
-      });
+      // Start video generation with Leonardo AI
+      console.log(`🎬 Calling Leonardo AI API with model: VEO3`);
+      const generationId = await this.createVideoGeneration(prompt);
+      console.log(`🔄 Video generation started for scene ${sceneIndex}, generation ID: ${generationId}`);
 
-      console.log(`🔄 Video generation started for scene ${sceneIndex}, operation ID: ${operation.name}`);
-
-      // Poll the operation status until the video is ready
+      // Poll the generation status until the video is ready
       let attempts = 0;
-      const maxAttempts = 60; // 10 minutes max (60 × 10 seconds)
+      const maxAttempts = 60; // 30 minutes max (60 × 30 seconds)
       
-      while (!operation.done && attempts < maxAttempts) {
+      while (attempts < maxAttempts) {
         attempts++;
         console.log(`⏳ Waiting for video generation to complete for scene ${sceneIndex}... (attempt ${attempts}/${maxAttempts})`);
         
-        await new Promise((resolve) => setTimeout(resolve, 30000)); // Wait 30 seconds
+        const status = await this.checkGenerationStatus(generationId);
         
-        try {
-          operation = await this.ai.operations.getVideosOperation({
-            operation: operation,
-          });
-        } catch (error) {
-          console.error(`❌ Error checking operation status for scene ${sceneIndex}:`, error);
-          // Continue polling even if there's an error
+        if (status.status === 'COMPLETE') {
+          console.log(`✅ Video generation completed for scene ${sceneIndex}!`);
+          break;
+        } else if (status.status === 'FAILED') {
+          throw new Error(`Video generation failed for scene ${sceneIndex}: ${status.error || 'Unknown error'}`);
         }
+        
+        // Wait 30 seconds before next check
+        await new Promise((resolve) => setTimeout(resolve, 30000));
       }
 
-      if (!operation.done) {
+      if (attempts >= maxAttempts) {
         throw new Error(`Video generation timed out after ${maxAttempts} attempts for scene ${sceneIndex}`);
       }
 
-      console.log(`✅ Video generation completed for scene ${sceneIndex}!`);
-
       // Download the generated video
-      const videoFile = await this.downloadVideo(operation, sceneIndex, sceneTitle);
+      const videoFile = await this.downloadVideo(generationId, sceneIndex, sceneTitle);
       
       return {
         success: true,
         sceneIndex: sceneIndex,
         sceneTitle: sceneTitle,
         prompt: prompt,
-        operationId: operation.name,
+        generationId: generationId,
         videoFile: videoFile,
         message: 'Video generation completed successfully'
       };
@@ -82,6 +75,83 @@ class VideoService {
     } catch (error) {
       console.error(`❌ Video generation error for scene ${sceneIndex}:`, error);
       throw new Error(`Video generation failed for scene ${sceneIndex}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Create a video generation request with Leonardo AI
+   * @param {string} prompt - The prompt for video generation
+   * @returns {Promise<string>} - Generation ID
+   */
+  async createVideoGeneration(prompt) {
+    try {
+      const response = await fetch(`${this.baseUrl}/generations-text-to-video`, {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'authorization': `Bearer ${this.apiKey}`,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          height: 720,
+          width: 1280,
+          prompt: prompt,
+          resolution: "RESOLUTION_720",
+          model: "VEO3",
+          isPublic: false
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Leonardo AI API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log(`📤 Leonardo AI generation created:`, JSON.stringify(data, null, 2));
+      
+      if (!data.sdGenerationJob || !data.sdGenerationJob.generationId) {
+        throw new Error('No generation ID received from Leonardo AI');
+      }
+
+      return data.sdGenerationJob.generationId;
+    } catch (error) {
+      console.error('❌ Error creating video generation:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check the status of a video generation
+   * @param {string} generationId - The generation ID to check
+   * @returns {Promise<Object>} - Generation status
+   */
+  async checkGenerationStatus(generationId) {
+    try {
+      const response = await fetch(`${this.baseUrl}/generations/${generationId}`, {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'authorization': `Bearer ${this.apiKey}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Leonardo AI status check error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log(`📡 Generation status for ${generationId}:`, JSON.stringify(data, null, 2));
+      
+      return {
+        status: data.generations?.[0]?.status || 'UNKNOWN',
+        error: data.generations?.[0]?.error || null,
+        videoUrl: data.generations?.[0]?.videoUrl || null
+      };
+    } catch (error) {
+      console.error('❌ Error checking generation status:', error);
+      throw error;
     }
   }
 
@@ -113,65 +183,55 @@ class VideoService {
 
   /**
    * Download the generated video file
-   * @param {Object} operation - Completed operation object
+   * @param {string} generationId - The generation ID
    * @param {number} sceneIndex - Index of the scene
    * @param {string} sceneTitle - Title of the scene
    * @returns {Promise<Object>} - Downloaded video file info
    */
-  async downloadVideo(operation, sceneIndex, sceneTitle) {
+  async downloadVideo(generationId, sceneIndex, sceneTitle) {
     try {
       console.log(`📥 Downloading video for scene ${sceneIndex}...`);
       
-      if (!operation.response || !operation.response.generatedVideos || !operation.response.generatedVideos[0]) {
-        throw new Error('No generated videos found in operation response');
+      // Get the final status to get the video URL
+      const status = await this.checkGenerationStatus(generationId);
+      
+      if (!status.videoUrl) {
+        throw new Error('No video URL found in generation status');
       }
 
-      const video = operation.response.generatedVideos[0].video;
-      console.log(`🎥 Video details:`, video);
+      // Download the video file
+      const videoResponse = await fetch(status.videoUrl);
+      if (!videoResponse.ok) {
+        throw new Error(`Failed to download video: ${videoResponse.status} ${videoResponse.statusText}`);
+      }
 
+      const videoBuffer = await videoResponse.arrayBuffer();
+      
       // Generate a unique filename
       const filename = `video_scene_${sceneIndex}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.mp4`;
       
-      // Ensure uploads directory exists
+      // Save the video file
       const fs = require('fs');
       const path = require('path');
       const uploadsDir = path.join(__dirname, '../uploads/videos');
       
+      // Ensure uploads directory exists
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
       }
-
+      
       const filePath = path.join(uploadsDir, filename);
-      
-      // Download the video file
-      await this.ai.files.download({
-        file: video,
-        downloadPath: filePath,
-      });
+      fs.writeFileSync(filePath, Buffer.from(videoBuffer));
 
-      console.log(`✅ Video downloaded for scene ${sceneIndex}: ${filename}`);
+      console.log(`✅ Video downloaded successfully: ${filename}`);
       
-      // Save metadata
-      const metadataPath = filePath.replace('.mp4', '_metadata.json');
-      const metadata = {
-        sceneIndex: sceneIndex,
-        sceneTitle: sceneTitle,
-        filename: filename,
-        filePath: filePath,
-        videoDetails: video,
-        operationId: operation.name,
-        downloadTime: new Date().toISOString()
-      };
-      
-      fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
-
       return {
         success: true,
         filename: filename,
         filePath: filePath,
-        metadataPath: metadataPath,
-        videoDetails: video,
-        size: fs.statSync(filePath).size
+        size: videoBuffer.byteLength,
+        videoUrl: status.videoUrl,
+        generationId: generationId
       };
 
     } catch (error) {
@@ -181,13 +241,25 @@ class VideoService {
   }
 
   /**
-   * Get available video models
-   * @returns {Promise<Array>} - List of available models
+   * Get available Leonardo AI models
+   * @returns {Promise<Array>} - Available models
    */
   async getAvailableModels() {
     try {
-      const models = await this.ai.models.list();
-      return models.filter(model => model.name.includes('veo'));
+      const response = await fetch(`${this.baseUrl}/models`, {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'authorization': `Bearer ${this.apiKey}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to get models: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.models || [];
     } catch (error) {
       console.error('❌ Error getting available models:', error);
       return [];
@@ -195,4 +267,4 @@ class VideoService {
   }
 }
 
-module.exports = new VideoService();
+module.exports = VideoService;
