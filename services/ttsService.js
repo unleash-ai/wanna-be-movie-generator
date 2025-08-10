@@ -22,6 +22,8 @@ class TTSService {
       // Determine voice based on description
       const voice = this.selectVoice(voiceDescription);
       
+      // Light throttle to avoid RPM spikes; 200ms gap
+      await new Promise(r => setTimeout(r, 200));
       const response = await this.openai.audio.speech.create({
         model: "gpt-4o-mini-tts",
         voice: voice,

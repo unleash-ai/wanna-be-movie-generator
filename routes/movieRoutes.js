@@ -44,6 +44,7 @@ const upload = multer({
 router.get('/', movieController.renderHomePage);
 router.post('/api/generate-movie', upload.single('photo'), movieController.generateMovie);
 router.get('/api/health', movieController.healthCheck);
+router.post('/api/test-veo', express.json(), movieController.testVeo);
 
 // Gallery route (placeholder for now)
 router.get('/gallery', (req, res) => {

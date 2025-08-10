@@ -10,6 +10,7 @@ class MovieController {
     this.renderHomePage = this.renderHomePage.bind(this);
     this.generateMovie = this.generateMovie.bind(this);
     this.healthCheck = this.healthCheck.bind(this);
+    this.testVeo = this.testVeo.bind(this);
   }
 
   // Lazy initialization of the chat model
@@ -35,6 +36,36 @@ class MovieController {
     return this.chatModel;
   }
 
+  // Test endpoint: generate a single Veo 3 video and return result JSON
+  async testVeo(req, res) {
+    try {
+      const promptFromBody = (req.body && req.body.prompt) ? String(req.body.prompt) : '';
+      const promptFromQuery = (req.query && req.query.prompt) ? String(req.query.prompt) : '';
+      const sceneDescription = (promptFromBody || promptFromQuery || 'a close-up shot of a golden retriever playing in a field of sunflowers').slice(0, 2000);
+
+      const veoService = require('../services/veoService');
+      const result = await veoService.generateVideo(sceneDescription, 0, 'Veo Test Scene', []);
+
+      const vf = result.videoFile || {};
+      return res.json({
+        success: true,
+        message: 'Veo 3 video created successfully',
+        scene: {
+          index: 0,
+          title: 'Veo Test Scene',
+        },
+        prompt: result.prompt,
+        file: {
+          filename: vf.filename,
+          path: vf.filePath,
+        }
+      });
+    } catch (error) {
+      console.error('❌ Veo test error:', error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
   // Render the main movie generator page
   async renderHomePage(req, res) {
     try {
@@ -53,7 +84,7 @@ class MovieController {
     const startTime = Date.now();
     
     try {
-      const { message } = req.body;
+      const { message, referenceImagePath } = req.body || {};
       
       if (!message || !message.trim()) {
         return res.status(400).json({ 
@@ -68,15 +99,16 @@ class MovieController {
       console.log('---');
 
       // Prepare messages for LangChain
-      const systemMessage = new SystemMessage(`You are a creative movie script writer. Create engaging, personalized short movie stories based on user descriptions. 
+      const systemMessage = new SystemMessage(`You are a creative movie script writer. Create engaging, personalized short movie stories based on user descriptions.
 
 Guidelines:
-- Create a complete short story that last about 12 seconds. 
-- Include vivid descriptions and dialogue, separated by scenes of 4 seconds (so about 3 scenes). 
-- Make it cinematic and engaging
-- The user is the protagonist always
-- Include character development and a satisfying conclusion (three acts)
-- Make it suitable for all audiences unless specifically requested otherwise
+- Create a complete short story that lasts about 30 seconds in total.
+- Structure into 4 scenes of ~8 seconds each to align with fixed-length video generation.
+- Make it cinematic and engaging; include clear camera language and visual details.
+- The user is the protagonist always.
+- Ensure character, face, clothing, and identity continuity across scenes.
+- Include a satisfying conclusion (three-act arc mapped across the 4 scenes).
+- Make it suitable for all audiences unless specifically requested otherwise.
 
 The user ${req.file ? 'has uploaded a photo of themselves and ' : ''}wants you to create a movie story.`);
 
@@ -112,7 +144,20 @@ Use a JSON format for the output:
       // Generate story using LangChain
       const chatModel = this.getChatModel();
       const response = await chatModel.call([systemMessage, humanMessage]);
-      const generatedStory = JSON.parse(response.content);
+      let generatedStory;
+      try {
+        generatedStory = JSON.parse(response.content);
+      } catch (e) {
+        // Attempt to extract JSON block heuristically
+        const text = String(response.content || '');
+        const start = text.indexOf('{');
+        const end = text.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+          generatedStory = JSON.parse(text.slice(start, end + 1));
+        } else {
+          throw e;
+        }
+      }
       const generationTime = Date.now() - startTime;
 
       // Extract all dialogues from scenes for text-to-speech
@@ -132,8 +177,12 @@ Use a JSON format for the output:
       console.log(`🎭 Found ${allDialogues.length} dialogues to process`);
 
       // Generate video with all components
+      let videoResult = null;
       try {
-        const videoResult = await this.generate_video(generatedStory, allDialogues);
+        const refFile = referenceImagePath
+          ? { path: referenceImagePath, filename: referenceImagePath.split('/').pop() }
+          : req.file;
+        videoResult = await this.generate_video(generatedStory, allDialogues, refFile);
         console.log('✅ Video generation completed:', videoResult);
       } catch (videoError) {
         console.error('❌ Video generation failed:', videoError);
@@ -153,6 +202,7 @@ Use a JSON format for the output:
         success: true,
         story: JSON.stringify(generatedStory),
         generationTime: generationTime,
+        finalMovie: videoResult && videoResult.finalMovie ? videoResult.finalMovie : null
       });
 
     } catch (error) {
@@ -187,7 +237,7 @@ Use a JSON format for the output:
   }
 
   // Generate video with all components
-  async generate_video(story, dialogues) {
+  async generate_video(story, dialogues, uploadedFile) {
     try {
       console.log('🎬 Starting video generation process...');
       
@@ -258,46 +308,47 @@ Use a JSON format for the output:
       }
 
       // Generate videos for all scenes in parallel
-      console.log('🎬 Generating videos for scenes...');
-      
-      const videoPromises = story.scenes.map(async (scene, sceneIndex) => {
+      console.log('🎬 Generating videos for scenes (Veo 3)...');
+      const veoService = require('../services/veoService');
+      const continuity = this.buildCharacterContinuity(story, uploadedFile);
+
+      // Sequential Veo to reduce 429 rate limits
+      const videoResults = [];
+      for (let sceneIndex = 0; sceneIndex < story.scenes.length; sceneIndex++) {
+        const scene = story.scenes[sceneIndex];
         try {
           console.log(`🎬 Starting video generation for scene ${sceneIndex}: "${scene.title}"`);
-          
-          const videoService = require('../services/videoService');
-          const videoResult = await videoService.generateVideo(
+          const videoResult = await veoService.generateVideo(
             scene.description,
             sceneIndex,
-            scene.title
+            scene.title,
+            Array.isArray(scene.dialogues) ? scene.dialogues : [],
+            continuity
           );
-          
           console.log(`✅ Video generation completed for scene ${sceneIndex}`);
-          
-          return {
-            sceneIndex,
-            sceneTitle: scene.title,
-            video: videoResult
-          };
+          videoResults.push({ sceneIndex, sceneTitle: scene.title, video: videoResult });
         } catch (error) {
           console.error(`❌ Failed to generate video for scene ${sceneIndex}:`, error);
-          return {
-            sceneIndex,
-            sceneTitle: scene.title,
-            video: null,
-            error: error.message
-          };
+          videoResults.push({ sceneIndex, sceneTitle: scene.title, video: null, error: error.message });
         }
-      });
+      }
 
-      // Execute audio and video generation in parallel (music is already generated)
-      const [audioResults, videoResults] = await Promise.all([
-        Promise.all(dialoguePromises),
-        Promise.all(videoPromises)
-      ]);
+      // Wait for all dialogues (already started) while videos ran sequentially
+      const audioResults = await Promise.all(dialoguePromises);
 
       console.log(`✅ Generated audio for ${audioResults.filter(r => r.audio).length}/${audioResults.length} dialogues`);
       console.log(`✅ Generated music for the movie: ${musicResult.success ? 'Success' : 'Failed'}`);
-      console.log(`✅ Generated videos for ${videoResults.filter(r => r.video).length}/${videoResults.length} scenes`);
+      console.log(`✅ Generated videos for ${videoResults.filter(r => r.video).length}/${videoResults.length} scenes (Veo 3)`);
+
+      // Assemble final ~30s movie with music
+      const editingService = require('../services/editingService');
+      const assembled = await editingService.assembleMovie(
+        videoResults,
+        musicResult,
+        30,
+        audioResults
+      );
+      console.log('🎞️ Final movie assembled at:', assembled.filePath);
       
       // TODO: Add effects generation
       
@@ -306,6 +357,7 @@ Use a JSON format for the output:
         audioResults,
         musicResult,
         videoResults,
+        finalMovie: assembled,
         message: 'Video generation pipeline completed'
       };
       
@@ -313,6 +365,17 @@ Use a JSON format for the output:
       console.error('❌ Video generation error:', error);
       throw error;
     }
+  }
+
+  buildCharacterContinuity(story, uploadedFile) {
+    const base = {
+      characterProfile: `Maintain the same main character appearance, face, clothing style, hair, and color palette across scenes. Keep consistent proportions and identity even when the camera, lighting, and backgrounds change. Avoid adding text overlays or subtitles.`
+    };
+    if (uploadedFile && uploadedFile.filename) {
+      base.referenceImage = uploadedFile.path || `uploads/${uploadedFile.filename}`;
+      base.characterProfile += ` Use the uploaded photo as a visual reference for identity continuity.`;
+    }
+    return base;
   }
 
   /**
