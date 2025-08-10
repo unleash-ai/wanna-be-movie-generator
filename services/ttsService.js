@@ -126,29 +126,54 @@ class TTSService {
     try {
       console.log(`🎵 Generating music for scene ${sceneIndex}: "${prompt.substring(0, 50)}..."`);
       console.log(`🎼 Music style: ${musicStyle}`);
+      
+      // Validate inputs
+      if (!prompt || typeof prompt !== 'string') {
+        throw new Error(`Invalid prompt: ${prompt} (type: ${typeof prompt})`);
+      }
+      if (!musicStyle || typeof musicStyle !== 'string') {
+        throw new Error(`Invalid music style: ${musicStyle} (type: ${typeof musicStyle})`);
+      }
+      if (!process.env.MUSIC_KEY) {
+        throw new Error('MUSIC_KEY environment variable is not set');
+      }
 
       const url = 'https://api.musicgpt.com/api/public/v1/MusicAI';
+      const requestBody = {
+        prompt: prompt,
+        music_style: musicStyle,
+        lyrics: "",
+        make_instrumental: true,
+        vocal_only: false,
+        voice_id: "",
+        webhook_url: ""
+      };
+      
+      console.log(`📤 MusicGPT API request body:`, JSON.stringify(requestBody, null, 2));
+      
       const options = {
         method: 'POST',
         headers: {
           'Authorization': process.env.MUSIC_KEY,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          prompt: prompt,
-          music_style: musicStyle,
-          lyrics: "",
-          make_instrumental: true,
-          vocal_only: false,
-          voice_id: "",
-          webhook_url: ""
-        })
+        body: JSON.stringify(requestBody)
       };
 
       const response = await fetch(url, options);
       
+      console.log(`📡 MusicGPT API response status: ${response.status} ${response.statusText}`);
+      
       if (!response.ok) {
-        throw new Error(`MusicGPT API error: ${response.status} ${response.statusText}`);
+        // Try to get error details from response
+        let errorDetails = '';
+        try {
+          const errorText = await response.text();
+          errorDetails = ` - Response: ${errorText}`;
+        } catch (e) {
+          errorDetails = ' - Could not read error response';
+        }
+        throw new Error(`MusicGPT API error: ${response.status} ${response.statusText}${errorDetails}`);
       }
 
       const data = await response.json();
