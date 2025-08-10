@@ -160,8 +160,26 @@ class TTSService {
       if (data.conversion_id_2) console.log(`🔑 conversion_id_2: ${data.conversion_id_2}`);
       if (data.task_id) console.log(`🔑 task_id: ${data.task_id}`);
 
-      // Check if we have a conversion_id to retrieve the music
-      if (data.conversion_id || data.conversion_id_2) {
+      // Check if we have direct download paths available
+      if (data.conversion_path_1 || data.conversion_path_2) {
+        // Direct download from conversion_path_1 or conversion_path_2
+        console.log(`📥 Direct download available from conversion paths`);
+        
+        const musicFile = await this.downloadMusicFromPaths(data, sceneIndex);
+        
+        return {
+          success: true,
+          filename: musicFile.filename,
+          filePath: musicFile.filePath,
+          responseData: data,
+          musicFile: musicFile,
+          sceneIndex: sceneIndex,
+          prompt: prompt,
+          musicStyle: musicStyle,
+          message: 'Music generation and download completed'
+        };
+      } else if (data.conversion_id || data.conversion_id_2) {
+        // Fallback to retrieval method if no direct paths
         const conversionId = data.conversion_id || data.conversion_id_2;
         console.log(`🔄 Retrieving music file for conversion ID: ${conversionId}`);
         
@@ -181,25 +199,9 @@ class TTSService {
           musicStyle: musicStyle,
           message: 'Music generation and retrieval completed'
         };
-      } else if (data.conversion && data.conversion.conversion_path_1) {
-        // Direct download from conversion_path_1 or conversion_path_2
-        console.log(`📥 Direct download available from conversion paths`);
-        
-        const musicFile = await this.downloadMusicFromPaths(data.conversion, sceneIndex);
-        
-        return {
-          success: true,
-          filename: musicFile.filename,
-          filePath: musicFile.filePath,
-          responseData: data,
-          musicFile: musicFile,
-          sceneIndex: sceneIndex,
-          prompt: prompt,
-          musicStyle: musicStyle,
-          message: 'Music generation and download completed'
-        };
       } else {
-        console.warn(`⚠️ No conversion ID or download paths found in response for scene ${sceneIndex}`);
+        console.warn(`⚠️ No conversion paths or conversion ID found in response for scene ${sceneIndex}`);
+        console.warn(`🔍 Available fields:`, Object.keys(data));
         return {
           success: false,
           responseData: data,
