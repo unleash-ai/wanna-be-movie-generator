@@ -224,13 +224,13 @@ Use a JSON format for the output:
         console.log(`  Scene ${idx}: "${scene.title}" - Music: "${scene.music}"`);
       });
 
-      // Prepare music generation promise (but don't await it yet)
-      console.log('🎵 Preparing music generation for the entire movie...');
+      // Generate music for the entire movie first
+      console.log('🎵 Generating music for the entire movie...');
       console.log(`🔍 Story object keys:`, Object.keys(story));
       console.log(`🔍 Story.music value:`, story.music);
       console.log(`🔍 Story.music type:`, typeof story.music);
       
-      let musicPromise = null;
+      let musicResult = null;
       try {
         // Validate that story.music exists
         if (!story.music || typeof story.music !== 'string') {
@@ -241,20 +241,20 @@ Use a JSON format for the output:
         const musicStyle = this.determineMusicStyle(story.description, story.music);
         console.log(`🎼 Movie music style: ${musicStyle}`);
         
-        // Create the promise but don't await it yet
-        musicPromise = ttsService.generateMusic(
+        // Generate music first
+        musicResult = await ttsService.generateMusic(
           story.music,
           musicStyle,
           'movie' // Use 'movie' instead of sceneIndex
         );
         
-        console.log(`🎵 Music generation promise created for the movie`);
+        console.log(`✅ Music generation completed for the movie`);
       } catch (error) {
-        console.error(`❌ Failed to create music generation promise:`, error);
-        musicPromise = Promise.resolve({
+        console.error(`❌ Failed to generate music for the movie:`, error);
+        musicResult = {
           success: false,
           error: error.message
-        });
+        };
       }
 
       // Generate videos for all scenes in parallel
@@ -289,10 +289,9 @@ Use a JSON format for the output:
         }
       });
 
-      // Execute audio, music, and video generation in parallel
-      const [audioResults, musicResult, videoResults] = await Promise.all([
+      // Execute audio and video generation in parallel (music is already generated)
+      const [audioResults, videoResults] = await Promise.all([
         Promise.all(dialoguePromises),
-        musicPromise,
         Promise.all(videoPromises)
       ]);
 
