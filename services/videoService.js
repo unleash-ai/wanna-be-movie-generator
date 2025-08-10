@@ -6,11 +6,11 @@ class VideoService {
       throw new Error('LEONARDO_API_KEY environment variable is required');
     }
     
-    this.apiKey = process.env.LEONARDO_API_KEY;
-    this.baseUrl = 'https://cloud.leonardo.ai/api/rest/v1';
+    this.sdk = require('../.api/apis/leonardoai');
+    this.sdk.auth(process.env.LEONARDO_API_KEY);
     
-    console.log(`🔑 Leonardo AI initialized`);
-    console.log(`🔑 API Key (first 10 chars): ${this.apiKey.substring(0, 10)}...`);
+    console.log(`🔑 Leonardo AI SDK initialized`);
+    console.log(`🔑 API Key (first 10 chars): ${process.env.LEONARDO_API_KEY.substring(0, 10)}...`);
   }
 
   /**
@@ -78,50 +78,36 @@ class VideoService {
     }
   }
 
-  /**
-   * Create a video generation request with Leonardo AI
+    /**
+   * Create a video generation request with Leonardo AI SDK using SVD Motion
    * @param {string} prompt - The prompt for video generation
    * @returns {Promise<string>} - Generation ID
    */
   async createVideoGeneration(prompt) {
     try {
-      const response = await fetch(`${this.baseUrl}/generations-text-to-video`, {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'authorization': `Bearer ${this.apiKey}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          height: 480,
-          width: 832,
-          prompt: prompt,
-          resolution: "RESOLUTION_480",
-          frameInterpolation: true,
-          isPublic: false,
-          promptEnhance: true,
-          "elements": [
-            {
-             "akUUID": "ece8c6a9-3deb-430e-8c93-4d5061b6adbf",
-             "weight":1
-            }
-      ]
-        })
+      const response = await this.sdk.createSVDMotionGeneration({
+        height: 480,
+        width: 832,
+        prompt: prompt,
+        resolution: "RESOLUTION_480",
+        frameInterpolation: true,
+        isPublic: false,
+        promptEnhance: true,
+        elements: [
+          {
+            akUUID: "ece8c6a9-3deb-430e-8c93-4d5061b6adbf",
+            weight: 1
+          }
+        ]
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Leonardo AI API error: ${response.status} ${response.statusText} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log(`📤 Leonardo AI generation created:`, JSON.stringify(data, null, 2));
+      console.log(`📤 Leonardo AI SVD Motion generation created:`, JSON.stringify(response, null, 2));
       
-      if (!data.sdGenerationJob || !data.sdGenerationJob.generationId) {
+      if (!response.sdGenerationJob || !response.sdGenerationJob.generationId) {
         throw new Error('No generation ID received from Leonardo AI');
       }
 
-      return data.sdGenerationJob.generationId;
+      return response.sdGenerationJob.generationId;
     } catch (error) {
       console.error('❌ Error creating video generation:', error);
       throw error;
@@ -129,32 +115,20 @@ class VideoService {
   }
 
   /**
-   * Check the status of a video generation
+   * Check the status of a video generation using Leonardo AI SDK
    * @param {string} generationId - The generation ID to check
    * @returns {Promise<Object>} - Generation status
    */
   async checkGenerationStatus(generationId) {
     try {
-      const response = await fetch(`${this.baseUrl}/generations/${generationId}`, {
-        method: 'GET',
-        headers: {
-          'accept': 'application/json',
-          'authorization': `Bearer ${this.apiKey}`
-        }
-      });
+      const response = await this.sdk.getGenerationsById({ generationId });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Leonardo AI status check error: ${response.status} ${response.statusText} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log(`📡 Generation status for ${generationId}:`, JSON.stringify(data, null, 2));
+      console.log(`📡 Generation status for ${generationId}:`, JSON.stringify(response, null, 2));
       
       return {
-        status: data.generations?.[0]?.status || 'UNKNOWN',
-        error: data.generations?.[0]?.error || null,
-        videoUrl: data.generations?.[0]?.videoUrl || null
+        status: response.generations?.[0]?.status || 'UNKNOWN',
+        error: response.generations?.[0]?.error || null,
+        videoUrl: response.generations?.[0]?.videoUrl || null
       };
     } catch (error) {
       console.error('❌ Error checking generation status:', error);
@@ -248,25 +222,13 @@ class VideoService {
   }
 
   /**
-   * Get available Leonardo AI models
+   * Get available Leonardo AI models using SDK
    * @returns {Promise<Array>} - Available models
    */
   async getAvailableModels() {
     try {
-      const response = await fetch(`${this.baseUrl}/models`, {
-        method: 'GET',
-        headers: {
-          'accept': 'application/json',
-          'authorization': `Bearer ${this.apiKey}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to get models: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      return data.models || [];
+      const response = await this.sdk.getModels();
+      return response.models || [];
     } catch (error) {
       console.error('❌ Error getting available models:', error);
       return [];
