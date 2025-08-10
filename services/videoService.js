@@ -40,7 +40,7 @@ class VideoService {
         attempts++;
         console.log(`⏳ Waiting for video generation to complete for scene ${sceneIndex}... (attempt ${attempts}/${maxAttempts})`);
         
-        await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10 seconds
+        await new Promise((resolve) => setTimeout(resolve, 30000)); // Wait 30 seconds
         
         try {
           operation = await this.ai.operations.getVideosOperation({

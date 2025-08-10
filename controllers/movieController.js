@@ -88,6 +88,8 @@ Use a JSON format for the output:
 {
     "title": "Title of the movie",
     "description": "Description of the movie",
+    "music": "description as a prompt to generate music",
+            
     "scenes": [
         {
             "title": "Title of the scene",
@@ -100,7 +102,6 @@ Use a JSON format for the output:
                     "dialogue": "Dialogue of the character"
                 }
             ],
-            "music": "description as a prompt to generate music (4 seconds)",
             "fx": "description to generate the fx",
         }
     ]
@@ -223,37 +224,29 @@ Use a JSON format for the output:
         console.log(`  Scene ${idx}: "${scene.title}" - Music: "${scene.music}"`);
       });
 
-      const musicPromises = story.scenes.map(async (scene, sceneIndex) => {
-        try {
-          console.log(`🎵 Starting music generation for scene ${sceneIndex}: "${scene.title}"`);
-          
-          // Determine music style based on scene description
-          const musicStyle = this.determineMusicStyle(scene.description, scene.music);
-          console.log(`🎼 Scene ${sceneIndex} music style: ${musicStyle}`);
-          
-          const musicResult = await ttsService.generateMusic(
-            scene.music,
-            musicStyle,
-            sceneIndex
-          );
-          
-          console.log(`✅ Music generation completed for scene ${sceneIndex}`);
-          
-          return {
-            sceneIndex,
-            sceneTitle: scene.title,
-            music: musicResult
-          };
-        } catch (error) {
-          console.error(`❌ Failed to generate music for scene ${sceneIndex}:`, error);
-          return {
-            sceneIndex,
-            sceneTitle: scene.title,
-            music: null,
-            error: error.message
-          };
-        }
-      });
+      // Generate one music track for the entire movie
+      console.log('🎵 Generating music for the entire movie...');
+      
+      let musicResult = null;
+      try {
+        // Determine music style based on movie description and music prompt
+        const musicStyle = this.determineMusicStyle(story.description, story.music);
+        console.log(`🎼 Movie music style: ${musicStyle}`);
+        
+        musicResult = await ttsService.generateMusic(
+          story.music,
+          musicStyle,
+          'movie' // Use 'movie' instead of sceneIndex
+        );
+        
+        console.log(`✅ Music generation completed for the movie`);
+      } catch (error) {
+        console.error(`❌ Failed to generate music for the movie:`, error);
+        musicResult = {
+          success: false,
+          error: error.message
+        };
+      }
 
       // Generate videos for all scenes in parallel
       console.log('🎬 Generating videos for scenes...');
@@ -287,15 +280,14 @@ Use a JSON format for the output:
         }
       });
 
-      // Execute all processes in parallel
-      const [audioResults, musicResults, videoResults] = await Promise.all([
+      // Execute audio and video generation in parallel, music is already generated
+      const [audioResults, videoResults] = await Promise.all([
         Promise.all(dialoguePromises),
-        Promise.all(musicPromises),
         Promise.all(videoPromises)
       ]);
 
       console.log(`✅ Generated audio for ${audioResults.filter(r => r.audio).length}/${audioResults.length} dialogues`);
-      console.log(`✅ Generated music for ${musicResults.filter(r => r.music).length}/${musicResults.length} scenes`);
+      console.log(`✅ Generated music for the movie: ${musicResult.success ? 'Success' : 'Failed'}`);
       console.log(`✅ Generated videos for ${videoResults.filter(r => r.video).length}/${videoResults.length} scenes`);
       
       // TODO: Add effects generation
@@ -303,7 +295,7 @@ Use a JSON format for the output:
       return {
         success: true,
         audioResults,
-        musicResults,
+        musicResult,
         videoResults,
         message: 'Video generation pipeline completed'
       };

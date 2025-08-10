@@ -181,15 +181,32 @@ class TTSService {
           musicStyle: musicStyle,
           message: 'Music generation and retrieval completed'
         };
+      } else if (data.conversion && data.conversion.conversion_path_1) {
+        // Direct download from conversion_path_1 or conversion_path_2
+        console.log(`📥 Direct download available from conversion paths`);
+        
+        const musicFile = await this.downloadMusicFromPaths(data.conversion, sceneIndex);
+        
+        return {
+          success: true,
+          filename: musicFile.filename,
+          filePath: musicFile.filePath,
+          responseData: data,
+          musicFile: musicFile,
+          sceneIndex: sceneIndex,
+          prompt: prompt,
+          musicStyle: musicStyle,
+          message: 'Music generation and download completed'
+        };
       } else {
-        console.warn(`⚠️ No conversion ID found in response for scene ${sceneIndex}`);
+        console.warn(`⚠️ No conversion ID or download paths found in response for scene ${sceneIndex}`);
         return {
           success: false,
           responseData: data,
           sceneIndex: sceneIndex,
           prompt: prompt,
           musicStyle: musicStyle,
-          message: 'Music generation completed but no conversion ID found'
+          message: 'Music generation completed but no download method found'
         };
       }
 
@@ -316,6 +333,70 @@ class TTSService {
     } catch (error) {
       console.error(`❌ Music download error for scene ${sceneIndex}:`, error);
       throw new Error(`Music download failed for scene ${sceneIndex}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Download music from conversion paths (conversion_path_1 or conversion_path_2)
+   * @param {Object} conversion - Conversion object with download paths
+   * @param {string|number} sceneIndex - Scene index or 'movie' for movie-wide music
+   * @returns {Promise<Object>} - Downloaded file result
+   */
+  async downloadMusicFromPaths(conversion, sceneIndex) {
+    try {
+      console.log(`📥 Downloading music from conversion paths for ${sceneIndex}`);
+      
+      // Choose the first available conversion path
+      const downloadUrl = conversion.conversion_path_1 || conversion.conversion_path_2;
+      if (!downloadUrl) {
+        throw new Error('No download URL available in conversion paths');
+      }
+
+      console.log(`🔗 Downloading from: ${downloadUrl}`);
+      
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download music file: ${response.status} ${response.statusText}`);
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      
+      // Generate a unique filename for the music
+      const prefix = sceneIndex === 'movie' ? 'music_movie' : `music_scene_${sceneIndex}`;
+      const filename = `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.mp3`;
+      
+      // Save the music file
+      const fs = require('fs');
+      const path = require('path');
+      const uploadsDir = path.join(__dirname, '../uploads/music');
+      
+      // Ensure uploads directory exists
+      const filePath = path.join(uploadsDir, filename);
+      
+      // Save the audio file
+      fs.writeFileSync(filePath, buffer);
+      
+      // Save metadata
+      const metadataPath = filePath.replace('.mp3', '_metadata.json');
+      fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+
+      console.log(`✅ Music file downloaded and saved for ${sceneIndex}: ${filename}`);
+      
+      return {
+        success: true,
+        filename: filename,
+        filePath: filePath,
+        size: buffer.length,
+        duration: conversion.conversion_duration_1 || conversion.conversion_duration_2 || 4,
+        metadata: conversion,
+        downloadUrl: downloadUrl,
+        conversionPath1: conversion.conversion_path_1,
+        conversionPath2: conversion.conversion_path_2
+      };
+
+    } catch (error) {
+      console.error(`❌ Music download error for ${sceneIndex}:`, error);
+      throw new Error(`Music download failed for ${sceneIndex}: ${error.message}`);
     }
   }
 }
