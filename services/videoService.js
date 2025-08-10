@@ -29,8 +29,8 @@ class VideoService {
       const prompt = this.createCinematicPrompt(sceneDescription, sceneTitle);
       console.log(`🎭 Generated prompt: "${prompt}"`);
 
-      // Start video generation with Leonardo AI
-      console.log(`🎬 Calling Leonardo AI API with model: VEO3`);
+      // Start video generation with Leonardo AI Motion 2
+      console.log(`🎬 Calling Leonardo AI API with model: Motion 2`);
       const generationId = await this.createVideoGeneration(prompt);
       console.log(`🔄 Video generation started for scene ${sceneIndex}, generation ID: ${generationId}`);
 
@@ -93,12 +93,19 @@ class VideoService {
           'content-type': 'application/json'
         },
         body: JSON.stringify({
-          height: 720,
-          width: 1280,
+          height: 480,
+          width: 832,
           prompt: prompt,
-          resolution: "RESOLUTION_720",
-          model: "VEO3",
-          isPublic: false
+          resolution: "RESOLUTION_480",
+          frameInterpolation: true,
+          isPublic: false,
+          promptEnhance: true,
+          "elements": [
+            {
+             "akUUID": "ece8c6a9-3deb-430e-8c93-4d5061b6adbf",
+             "weight":1
+            }
+      ]
         })
       });
 

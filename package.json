@@ -1,23 +1,25 @@
 {
-  "name": "nosocomial-express-app",
+  "name": "ai-movie-generator",
   "version": "1.0.0",
-  "description": "A basic Node.js Express application with Pug templating and Mongoose",
+  "description": "AI-powered movie generation application with Leonardo AI, MusicGPT, and OpenAI integration",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js"
   },
   "keywords": [
-    "nodejs",
+    "ai",
+    "movie",
+    "video-generation",
+    "leonardo-ai",
+    "musicgpt",
+    "openai",
     "express",
-    "pug",
-    "mongoose",
-    "mongodb"
+    "pug"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-
     "@langchain/openai": "^0.0.14",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
