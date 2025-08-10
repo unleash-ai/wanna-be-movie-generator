@@ -8,7 +8,10 @@ A ChatGPT-like interface for generating personalized movie stories using LangCha
 - 📸 **Photo Integration**: Upload your photo to become the protagonist
 - 💬 **ChatGPT-like Interface**: Familiar, intuitive chat-based interaction
 - 🎬 **Structured Movie Output**: JSON-formatted stories with scenes, dialogues, music, and effects
-- 🎥 **20-Second Stories**: Optimized for short video generation
+- 🎥 **12-Second Stories**: Optimized for short video generation (3 scenes)
+- 🎵 **AI Music Generation**: Background music for each movie using MusicGPT API
+- 🎬 **AI Video Generation**: Scene videos using Google Veo AI
+- 🔊 **Text-to-Speech**: AI-generated dialogue audio using OpenAI TTS
 - 📱 **Responsive Design**: Beautiful, modern UI inspired by ChatGPT
 - 🚀 **Real-time Generation**: Live story creation with progress indicators
 - 🏗️ **Clean Architecture**: Separated controllers, routes, and views
@@ -47,9 +50,16 @@ Before running this application, make sure you have the following:
    PORT=3000
    NODE_ENV=development
    OPENAI_API_KEY=your_openai_api_key_here
+   MUSIC_KEY=your_musicgpt_api_key_here
+   GOOGLE_API_KEY=your_google_genai_api_key_here
+   G_PROJECT_ID=your_google_project_id_here
    ```
    
-   **Important:** Replace `your_openai_api_key_here` with your actual OpenAI API key from https://platform.openai.com/api-keys
+   **Required Environment Variables:**
+   - `OPENAI_API_KEY`: Your OpenAI API key from https://platform.openai.com/api-keys
+   - `MUSIC_KEY`: Your MusicGPT API key for music generation
+   - `GOOGLE_API_KEY`: Your Google GenAI API key for video generation
+   - `G_PROJECT_ID`: Your Google Cloud project ID for GenAI services
 
 ## Running the Application
 

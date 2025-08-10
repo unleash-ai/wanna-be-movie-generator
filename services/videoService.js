@@ -6,13 +6,9 @@ class VideoService {
     if (!process.env.GOOGLE_API_KEY) {
       throw new Error('GOOGLE_API_KEY environment variable is required');
     }
-    if (!process.env.G_PROJECT_ID) {
-      throw new Error('G_PROJECT_ID environment variable is required');
-    }
-    
+
     this.ai = new GoogleGenAI({
-      apiKey: process.env.GOOGLE_API_KEY,
-      projectId: process.env.G_PROJECT_ID,
+      apiKey: process.env.GOOGLE_API_KEY
     });
     
     console.log(`🔑 Google GenAI initialized with project ID: ${process.env.G_PROJECT_ID}`);

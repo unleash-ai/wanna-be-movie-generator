@@ -286,7 +286,7 @@ class TTSService {
           console.log(`✅ Music ready for scene ${sceneIndex}!`);
           
           // Download the music file
-          const audioUrl = data.conversion.audio_url;
+          const audioUrl = data.conversion.conversion_path_1 || data.conversion.conversion_path_2;
           if (audioUrl) {
             return await this.downloadMusicFile(audioUrl, sceneIndex, data);
           } else {
