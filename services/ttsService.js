@@ -166,7 +166,7 @@ class TTSService {
         console.log(`🔄 Retrieving music file for conversion ID: ${conversionId}`);
         
         // Wait a bit for processing, then retrieve the music
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds initially
         
         const musicFile = await this.retrieveMusic(conversionId, sceneIndex);
         
@@ -218,7 +218,7 @@ class TTSService {
       };
 
       let attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 20; // Increased since we're waiting 30 seconds between attempts
       
       while (attempts < maxAttempts) {
         attempts++;
@@ -249,11 +249,11 @@ class TTSService {
             throw new Error('No audio URL found in completed conversion');
           }
         } else if (data.success && data.conversion && data.conversion.status === 'PROCESSING') {
-          console.log(`⏳ Music still processing for scene ${sceneIndex}, waiting...`);
-          await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+          console.log(`⏳ Music still processing for scene ${sceneIndex}, waiting 30 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30 seconds
         } else {
           console.log(`⚠️ Unexpected status for scene ${sceneIndex}:`, data.conversion?.status);
-          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+          await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30 seconds
         }
       }
       
