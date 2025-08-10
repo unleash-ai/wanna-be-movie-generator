@@ -14,6 +14,9 @@ class VideoService {
       apiKey: process.env.GOOGLE_API_KEY,
       projectId: process.env.G_PROJECT_ID,
     });
+    
+    console.log(`🔑 Google GenAI initialized with project ID: ${process.env.G_PROJECT_ID}`);
+    console.log(`🔑 API Key (first 10 chars): ${process.env.GOOGLE_API_KEY.substring(0, 10)}...`);
   }
 
   /**
@@ -33,6 +36,7 @@ class VideoService {
       console.log(`🎭 Generated prompt: "${prompt}"`);
 
       // Start video generation
+      console.log(`🎬 Calling Google Veo API with model: veo-3.0-generate-preview`);
       let operation = await this.ai.models.generateVideos({
         model: "veo-3.0-generate-preview",
         prompt: prompt,
