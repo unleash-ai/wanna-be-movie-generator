@@ -172,6 +172,21 @@ body {
   bottom: 0;
 }
 
+/* Landing upload overrides (centered, non-sticky) */
+.landing-upload.input-section {
+  position: static;
+  bottom: auto;
+  background: transparent;
+  border-top: none;
+  display: flex;
+  justify-content: center;
+}
+.landing-upload .input-container { max-width: 520px; width: 100%; }
+.landing-upload .input-wrapper {
+  justify-content: center;
+  gap: 1rem;
+}
+
 .input-container {
   position: relative;
   max-width: 100%;
@@ -212,40 +227,33 @@ body {
 
 /* Button Styles */
 .file-upload-btn {
-  background: transparent;
-  border: none;
-  color: #8e8ea0;
+  background: #2d2d48;
+  border: 1px solid #3b3b62;
+  color: #ffffff;
   cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 4px;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
   transition: all 0.2s ease;
-  font-size: 1.2rem;
-  display: flex;
+  font-size: 1rem;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
 }
 
-.file-upload-btn:hover {
-  background: #2d2d48;
-  color: #ffffff;
-}
+.file-upload-btn:hover { background: #3b3b62; }
 
 .send-btn {
   background: #10a37f;
   border: none;
   color: white;
   cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
   transition: all 0.2s ease;
   font-size: 1rem;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
 }
 
 .send-btn:hover:not(:disabled) {

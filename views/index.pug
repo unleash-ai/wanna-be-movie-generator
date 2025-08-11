@@ -2,37 +2,26 @@ extends layout
 
 block content
   .welcome-section
-    h1.welcome-title Movie Generator
-    p.welcome-subtitle Describe your movie idea and upload your photo. Our AI will create a personalized short story for you.
+    h1.welcome-title Like a Rolling Stone
+    p.welcome-subtitle Living Your Blockbuster Worthy Moments In Your Own Shoes!
   
   .chat-container
     .messages-area#messagesArea
-      // Welcome message
+      // Landing instructions
       .message.assistant
         .message-avatar 🎬
         .message-content
-          p Welcome! I'm your AI movie generator. Tell me about the movie you'd like to create, and don't forget to upload a photo of yourself to be the star!
-          p.
-            <strong>Examples:</strong><br>
-            • "Create a sci-fi adventure where I'm an astronaut discovering a new planet"<br>
-            • "Make a romantic comedy where I meet my soulmate in a coffee shop"<br>
-            • "Write a thriller where I'm a detective solving a mysterious case"
-    
-    .input-section
+          p Upload your image below to create your own movie trailer.
+    .input-section.landing-upload
       .input-container
         .photo-preview#photoPreview(style="display: none;")
           img#previewImage
           span#photoName
           button.remove-photo(onclick="removePhoto()") ×
-        
         .input-wrapper
-          button.file-upload-btn(onclick="document.getElementById('photoUpload').click()" title="Upload your photo")
-            | 📎
-          textarea.message-input#messageInput(placeholder="Describe your movie idea..." rows="1" oninput="adjustTextareaHeight(this)" onkeydown="handleKeyDown(event)")
-          button.send-btn#sendBtn(onclick="sendMessage()" disabled)
-            | ➤
-        
-        input#photoUpload(type="file" accept="image/*" style="display: none;" onchange="handlePhotoUpload(this)")
+          button.file-upload-btn(type="button" onclick="document.getElementById('photoUpload').click()" title="Upload your photo") Upload Image
+          button.send-btn#sendBtn(onclick="submitTrailer()") Create Trailer
+        input#photoUpload(type="file" accept="image/*" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" onchange="handlePhotoUpload(this)")
   
   script.
     let currentPhoto = null;
@@ -247,8 +236,44 @@ block content
       }, 4000);
     }
     
-    // Initialize
-    document.addEventListener('DOMContentLoaded', () => {
-      const messageInput = document.getElementById('messageInput');
-      messageInput.focus();
-    });
+    // Simple 20s loading then show pre-created video
+    function submitTrailer() {
+      if (!currentPhoto) {
+        showNotification('Please upload an image to continue', 'warning');
+        return;
+      }
+      const messagesArea = document.getElementById('messagesArea');
+      const waiting = document.createElement('div');
+      waiting.className = 'message assistant';
+      waiting.innerHTML = `
+        <div class="message-avatar">⏳</div>
+        <div class="message-content">
+          <div class="loading">
+            <span>Creating your trailer...</span>
+            <div class="loading-dots">
+              <div class="loading-dot"></div>
+              <div class="loading-dot"></div>
+              <div class="loading-dot"></div>
+            </div>
+            <div style="margin-top:8px;font-size:0.9rem;color:#aaa;">This can take about 20 seconds</div>
+          </div>
+        </div>`;
+      messagesArea.appendChild(waiting);
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+      setTimeout(() => {
+        waiting.remove();
+        const videoMsg = document.createElement('div');
+        videoMsg.className = 'message assistant';
+        videoMsg.innerHTML = `
+          <div class="message-avatar">🎞️</div>
+          <div class="message-content">
+            <video controls style="width:100%;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,0.3)">
+              <source src="/uploads/videos/final_movie_1754868462086_6bc1ea.mp4" type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+          </div>`;
+        messagesArea.appendChild(videoMsg);
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+        showNotification('Your trailer is ready!', 'success');
+      }, 20000);
+    }

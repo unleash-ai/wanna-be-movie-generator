@@ -30,9 +30,23 @@ class EditingService {
     }
 
     const inputs = ordered.map((r) => r.video.videoFile.filePath);
-    const musicPath = musicResult && musicResult.musicFile && musicResult.musicFile.filePath
+    let musicPath = musicResult && musicResult.musicFile && musicResult.musicFile.filePath
       ? musicResult.musicFile.filePath
       : null;
+    // Fallback: allow a local placeholder track via env
+    if (!musicPath && process.env.MUSIC_PLACEHOLDER_PATH) {
+      try {
+        const candidate = path.isAbsolute(process.env.MUSIC_PLACEHOLDER_PATH)
+          ? process.env.MUSIC_PLACEHOLDER_PATH
+          : path.join(process.cwd(), process.env.MUSIC_PLACEHOLDER_PATH);
+        if (fs.existsSync(candidate)) {
+          musicPath = candidate;
+          console.log(`🎵 Using placeholder music from ${musicPath}`);
+        }
+      } catch (_) {
+        // ignore
+      }
+    }
     const dialogues = Array.isArray(dialogueResults) ? dialogueResults.filter(d => d && d.audio && d.audio.filePath) : [];
 
     const outputFile = `final_movie_${Date.now()}_${Math.random().toString(36).substr(2, 6)}.mp4`;
@@ -92,7 +106,8 @@ class EditingService {
 
         const mixInputs = [];
         if (musicPath) {
-          filters.push(`[${musicInputIndex}:a:0]volume=0.25[music]`);
+          // Ensure music is present and long enough; pad to targetSeconds
+          filters.push(`[${musicInputIndex}:a:0]volume=0.25,apad=pad_dur=${targetSeconds}[music]`);
           mixInputs.push('[music]');
         }
         mixInputs.push(...dialogueOutLabels);
